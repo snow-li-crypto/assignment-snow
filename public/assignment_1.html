@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="//code.jquery.com/ui/1.13.1/themes/base/jquery-ui.css">
+</head>
+
+<script src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js"
+        type="application/javascript"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" integrity="sha512-894YE6QWD5I59HgZOGReFYm4dnWc1Qt5NtvYSaNcOP+u1T9qYdvdihz0PPSiiqn/+/3e7Jo4EaG7TubfWGUrMQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://code.jquery.com/ui/1.13.1/jquery-ui.js"></script>
+<script src="javascripts/core.js"></script>
+
+<script>
+
+    $(document).ready(function(){
+        $( "#salutation" ).selectmenu();
+
+        window.context = {
+            contracts: {},
+            contractConfig: {},
+            provider: undefined
+        };
+
+        let contractConfig ={
+                        cronosOracle:{
+                                    address: '0xb3DF0a9582361db08EC100bd5d8CB70fa8579f4B', 
+                                    contractABIUrl: 'https://api.cronoscan.com/api?module=contract&action=getabi&address=0xb3DF0a9582361db08EC100bd5d8CB70fa8579f4B&apikey=PRNM6CN8ZW45C9YPBQDIYEBVS2ZER9FTHE'
+                                    }
+                            };
+
+        window.context.contractConfig = contractConfig;
+
+        let config = contractConfig.cronosOracle;
+        $.getJSON(config.contractABIUrl, function (data) {
+            let contractABI = JSON.parse(data.result);
+            config.contractABI = contractABI;
+            contractABI.forEach(
+                function(item){
+                    if(item.type == 'function'){
+                        var o = new Option(item.name, item.name);
+                        /// jquerify the DOM object 'o' so we can use the html method
+                        $("#salutation").append(o);
+                    }
+                }
+            );
+        });
+
+        log('1 step: Please link your wallet');
+        log('2 step: Select the method name you want to call and click call');
+        log('----------------------------------');
+    });
+
+    async function init(){
+        connectWallet(cronos_mainnet_chainId)
+    }
+
+
+    function call(){
+
+        let methodName =  $('#salutation').select().val();
+        if(!methodName){
+            log('plase select method name!');
+            return;
+        }
+        let smartContract = cacheSmartContract( window.context.contractConfig.cronosOracle);
+        smartContract[methodName]().then(function(result){
+                        resultHandle(methodName, result)
+                    }).catch(err => log(err));
+    }
+    
+
+    
+
+</script>
+
+<body>
+    <button onclick="init()" class="ui-button ui-widget ui-corner-all">Connect wallet</button>
+    <select name="salutation" id="salutation">
+        <option disabled selected>Please pick one</option>
+    </select>
+    <button onclick="call()" class="ui-button ui-widget ui-corner-all">Call</button>  
+    <br>
+    <br>
+    
+    <div>
+        <p id="logs"></p>
+    </div>
+    
+
+</body>
+</html>

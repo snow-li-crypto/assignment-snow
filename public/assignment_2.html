@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="//code.jquery.com/ui/1.13.1/themes/base/jquery-ui.css">
+</head>
+
+<script src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js"
+        type="application/javascript"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" integrity="sha512-894YE6QWD5I59HgZOGReFYm4dnWc1Qt5NtvYSaNcOP+u1T9qYdvdihz0PPSiiqn/+/3e7Jo4EaG7TubfWGUrMQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://code.jquery.com/ui/1.13.1/jquery-ui.js"></script>
+<script src="javascripts/core.js"></script>
+
+<script>
+
+    $(document).ready(function(){
+
+        $( "#salutation" ).selectmenu();
+        window.context = {
+            contracts: {},
+            contractConfig: {},
+            provider: undefined
+        };
+
+        let contractConfig ={
+                    weatherRecord:{
+                                    address: '0x49354813d8BFCa86f778DfF4120ad80E4D96D74E', 
+                                    contractABI: [{"inputs":[{"internalType":"uint32","name":"batchId","type":"uint32"},{"internalType":"bytes32","name":"cityName","type":"bytes32"}],"name":"getWeather","outputs":[{"internalType":"uint32","name":"","type":"uint32"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint32","name":"batchId","type":"uint32"},{"internalType":"bytes32","name":"cityName","type":"bytes32"},{"internalType":"uint32","name":"temperature","type":"uint32"}],"name":"reportWeather","outputs":[],"stateMutability":"nonpayable","type":"function"}]
+                                    },
+                    multicall:{
+                                    address: '0xAc853E058E45743e8bBb51bF064AD115887aBC94', 
+                                    contractABI: [{"inputs":[{"components":[{"internalType":"address","name":"target","type":"address"},{"internalType":"bytes","name":"callData","type":"bytes"}],"internalType":"struct Multicall.Call[]","name":"calls","type":"tuple[]"}],"name":"aggregate","outputs":[{"internalType":"uint256","name":"blockNumber","type":"uint256"},{"internalType":"bytes[]","name":"returnData","type":"bytes[]"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"blockNumber","type":"uint256"}],"name":"getBlockHash","outputs":[{"internalType":"bytes32","name":"blockHash","type":"bytes32"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"getCurrentBlockCoinbase","outputs":[{"internalType":"address","name":"coinbase","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"getCurrentBlockDifficulty","outputs":[{"internalType":"uint256","name":"difficulty","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"getCurrentBlockGasLimit","outputs":[{"internalType":"uint256","name":"gaslimit","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"getCurrentBlockTimestamp","outputs":[{"internalType":"uint256","name":"timestamp","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"addr","type":"address"}],"name":"getEthBalance","outputs":[{"internalType":"uint256","name":"balance","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"getLastBlockHash","outputs":[{"internalType":"bytes32","name":"blockHash","type":"bytes32"}],"stateMutability":"view","type":"function"}]
+                                    }                
+                            };
+
+        window.context.contractConfig = contractConfig;
+
+        contractConfig.weatherRecord.contractABI.forEach(
+                function(item){
+                    if(item.type == 'function'){
+                        var o = new Option(item.name, item.name);
+                        /// jquerify the DOM object 'o' so we can use the html method
+                        $("#salutation").append(o);
+                    }
+                }
+            );
+
+        $('#salutation').on('selectmenuchange', function() {
+            loadParams(contractConfig.weatherRecord.contractABI);
+            let batchId = $('#initBatchId').val();
+            $('#batchId').val(batchId);
+        });
+
+        $("#initBatchId").val(randomHex());
+
+
+        log('1 step: Please link your wallet');
+        log('2 step: Please click the ReportWeather button');
+        log('3 step: Select the method name you want to call and click call');
+        log('4 step: You can click the Multicall button to get weather for multiple cities at once');
+        log('----------------------------------');
+        
+    });
+
+    async function init(){
+        connectWallet(cronos_testnet_chainId)
+    }
+
+
+    function call(){
+
+        let methodName =  $('#salutation').select().val();
+        if(!methodName){
+            log('plase select method name!');
+            return;
+        }
+
+
+        let smartContract = cacheSmartContract( window.context.contractConfig.weatherRecord);
+        if(methodName == 'getWeather'){
+
+            smartContract[methodName]($('#batchId').val(), $('#cityName').val()).then(function(result){
+                        log('getWeather: ' + JSON.stringify(result));
+                        resultHandle(methodName, weatherDecode(result))
+                    }).catch(err => log(err));
+                    
+        }
+
+        if(methodName == 'reportWeather'){
+            
+            smartContract[methodName]($('#batchId').val(), $('#cityName').val(), $('#temperature').val()).then(function(result){
+                        resultHandle(methodName, result)
+                    }).catch(err => log(err));
+        }            
+
+    }
+
+    function multicall(){
+
+
+        let targetIface = new ethers.utils.Interface(window.context.contractConfig.weatherRecord.contractABI);
+
+        let calls = [];
+        window.context.weathers.forEach(function(item){
+            calls.push({target: '0x49354813d8BFCa86f778DfF4120ad80E4D96D74E', 
+                    callData: targetIface.encodeFunctionData("getWeather", [item.batchId, item.city ]) });
+        });
+
+        cacheSmartContract( window.context.contractConfig.multicall).callStatic.aggregate( calls ).then(function(result){
+                    result.returnData.forEach(function(data){
+                        log(weatherDecode(parseInt(data, 16)));
+                    });
+
+                    }).catch(err => log(err));
+    }
+
+    function loadWeather(){
+        let weathers = [{name: "shanghai", url: 'https://goweather.herokuapp.com/weather/shanghai'}
+                        ,{name:"london", url: 'https://goweather.herokuapp.com/weather/london'}
+                        ,{name:"ushuaia", url: 'https://goweather.herokuapp.com/weather/ushuaia'}]
+
+            // weathers = [{name:"ushuaia", url: 'https://goweather.herokuapp.com/weather/ushuaia'}];
+
+        window.context.weathers = weathers;
+
+        weathers.forEach(function(item){
+            $.get( item.url, function( data ) {
+
+                let temperatureEncode = weatherEncode(data.temperature);
+                let cityName = ethers.utils.formatBytes32String(item.name)
+                log(item.name + ' : ' +  data.temperature + ' cityName: ' + cityName);
+                
+                let batchId = $('#initBatchId').val();
+
+                item.city = cityName;
+                item.batchId = batchId;
+                
+                let methodName = 'reportWeather';
+                cacheSmartContract( window.context.contractConfig.weatherRecord)[methodName](batchId, cityName, temperatureEncode ).then(function(result){
+                        log('Transaction Hash: ' +  result.hash)
+                        // resultHandle(methodName, result)
+                    }).catch(err => log(err));
+            });
+        });
+    }
+    
+
+    
+
+</script>
+
+<body>
+    <button onclick="init()" class="ui-button ui-widget ui-corner-all">Connect wallet</button>
+    <button onclick="loadWeather()" class="ui-button ui-widget ui-corner-all">ReportWeather</button>  
+    <select name="salutation" id="salutation">
+        <option disabled selected>Please pick one</option>
+    </select>
+    <button onclick="call()" class="ui-button ui-widget ui-corner-all">Call</button>  
+    <button onclick="multicall()" class="ui-button ui-widget ui-corner-all">Multicall</button>  
+    
+    <br>
+    <br>
+
+    <div id="init">
+        <label>InitBatchId: </label> <input id="initBatchId" readonly></input>
+    </div>
+
+    <br>
+
+    <div id="params">
+        
+    </div>
+    
+    <div>
+        <p id="logs"></p>
+    </div>
+    
+
+</body>
+</html>
