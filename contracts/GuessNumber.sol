@@ -4,13 +4,12 @@ pragma solidity ^0.8.9;
 import "@openzeppelin/contracts/utils/Strings.sol";
 
 contract GuessNumber {
+
     struct Ticket {
         uint16 number;
         bool submited;
         address addr;
     }
-
-    //----------------------------------
 
     address host;
 
@@ -34,12 +33,11 @@ contract GuessNumber {
 
     State state;
 
-    //----------------------------------
-
+    // defind event
     event Received(address, uint);
     event Fallback(address);
 
-    //----------------------------------
+    // defind error
     error NumberRange();
     error RepeatSubmit();
     error ExistNumber();
@@ -49,8 +47,8 @@ contract GuessNumber {
     error FailDepositValue();
     error PlayersLimit();
 
-    //----------------------------------
 
+    // defind modifier
     modifier numberVerify(uint number) {
         if (number < 0 || number >= 1000) {
             revert NumberRange();
@@ -72,7 +70,6 @@ contract GuessNumber {
         _;
     }
 
-    //----------------------------------
 
     constructor(
         bytes32 nonceHash_,
@@ -88,6 +85,9 @@ contract GuessNumber {
         host = msg.sender;
     }
 
+    /**
+     * play games
+     */
     function guess(uint16 number_)
         external
         payable
@@ -114,6 +114,9 @@ contract GuessNumber {
            state = State.Guessing;
     }
 
+    /**
+        reveal game
+     */
     function reveal(string memory nonce, uint16 number_)
         external
         stateVerify
@@ -165,7 +168,4 @@ contract GuessNumber {
         emit Fallback(msg.sender);
     }
 
-    function getBalance() public view returns (uint) {
-        return address(this).balance;
-    }
 }
