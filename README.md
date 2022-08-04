@@ -4,10 +4,25 @@ This project demonstrates a basic Hardhat use case. It comes with a sample contr
 
 Try running some of the following tasks:
 
-```shell
-npx hardhat help
-npx hardhat test
-GAS_REPORT=true npx hardhat test
-npx hardhat node
-npx hardhat run scripts/deploy.js
+###assignment 2
 ```
+contract: GuessNumber.sol
+testcase: GuessNumber.js
+
+npx hardhat test GuessNumber.js
+```
+
+
+###assignment 3
+```
+task1:
+    FruitStand.sol
+task2:
+    contract: ChequeBank.sol
+    testcase: ChequeBank.js
+
+npx hardhat test ChequeBank.js
+```
+
+
+
