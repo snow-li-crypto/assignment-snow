@@ -10,31 +10,20 @@ contract ChequeBank {
      */
     mapping(address => uint) accounts;
 
-    /*
-    *revoke flag.
-    Mark true if it has been revoked
-    *
-    * chequeId : bool    
-    * e.g  {"0x6a1ee167e4a18ef8e04e30d02135ce67b05e5d0a9dfa815e5f769a614240d8a2": true}
-    */
-    mapping(bytes32 => bool) revokes;
-
-    /*
-     * use flag.
-     * Mark true if it has been redeemed
-     *
-     * chequeId : bool
-     * e.g  {"0x6a1ee167e4a18ef8e04e30d02135ce67b05e5d0a9dfa815e5f769a614240d8a2": true}
-     */
-    mapping(bytes32 => bool) eCheques;
-
     /**
-     * sign over calculator, 0 if none.
-     *
-     *   chequeId : SignOverInfo
-     *   e.g {"0x6a1ee167e4a18ef8e04e30d02135ce67b05e5d0a9dfa815e5f769a614240d8a2": 1}
+        redeemFlag: Mark true if it has been redeemed
+        revokeFlag: Mark true if it has been revoked
+        signOverFlag: Mark true if it has been sign over
      */
-    mapping(bytes32 => SignOverInfo) signOvers;
+    mapping(bytes32 => ECheque) eCheques;
+
+    struct ECheque {
+        bool revokeFlag;
+        bool redeemFlag;
+        bool signOverFlag;
+        SignOverInfo signOverInfo;
+        address redeemAddress;
+    }
 
     struct ChequeInfo {
         uint amount;
@@ -93,7 +82,7 @@ contract ChequeBank {
             "The payee and the contract caller are inconsistent"
         );
         require(
-            signOvers[chequeId].counter == 0,
+            eCheques[chequeId].signOverInfo.counter == 0,
             "The e-check has been signed over"
         );
 
@@ -114,9 +103,13 @@ contract ChequeBank {
     function notifySignOver(SignOver memory signOver) external {
         SignOverInfo memory info = signOver.signOverInfo;
 
-        uint8 existCounter = signOvers[info.chequeId].counter;
+        require(!eCheques[info.chequeId].revokeFlag, "e-cheque has revoke");
+
+        uint8 existCounter = eCheques[info.chequeId].signOverInfo.counter;
         if (existCounter > 0)
-            require(info.oldPayee == signOvers[info.chequeId].newPayee);
+            require(
+                info.oldPayee == eCheques[info.chequeId].signOverInfo.newPayee
+            );
 
         require(
             existCounter + 1 == info.counter,
@@ -128,7 +121,7 @@ contract ChequeBank {
             "signOver sig invalid"
         );
 
-        signOvers[info.chequeId] = info;
+        eCheques[info.chequeId].signOverInfo = info;
     }
 
     /**
@@ -216,8 +209,11 @@ contract ChequeBank {
         require(block.number >= info.validFrom, "validFrom > block.number");
         if (info.validThru != 0)
             require(block.number < info.validThru, "block.number <= validThru");
-        require(!eCheques[info.chequeId], "Repeat Redeeming");
-        require(!revokes[info.chequeId], "The e-Cheque has been revoke");
+        require(!eCheques[info.chequeId].redeemFlag, "Repeat Redeeming");
+        require(
+            !eCheques[info.chequeId].revokeFlag,
+            "The e-Cheque has been revoke"
+        );
 
         //check cheque signer
         require(
@@ -235,7 +231,8 @@ contract ChequeBank {
         //excute redeem
         transfer(payer, payee, amount);
 
-        eCheques[chequeId] = true;
+        eCheques[chequeId].redeemAddress = payee;
+        eCheques[chequeId].redeemFlag = true;
         emit Redeem(payee, amount);
     }
 
@@ -253,7 +250,11 @@ contract ChequeBank {
     }
 
     function revoke(bytes32 chequeId) external {
-        if (!revokes[chequeId]) revokes[chequeId] = true;
+        if (eCheques[chequeId].redeemAddress != msg.sender)
+            require(!eCheques[chequeId].redeemFlag, "e-cheque has redeem");
+
+        if (!eCheques[chequeId].revokeFlag)
+            eCheques[chequeId].revokeFlag = true;
     }
 
     /**
